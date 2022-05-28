@@ -1,0 +1,965 @@
+<h1 id="quick-look-defi-contract-testing-with-foundry">Quick Look DeFi
+Contract Testing With Foundry</h1>
+<h6 id="tags-topic">tags: <code>TOPIC</code></h6>
+<p><strong>Final Updated: 2022/5/24</strong></p>
+<blockquote>
+<p>最近開始學習 Unit Testing 和 Foundry，還有早就應該開始碰但一直逃避的
+DeFi，乾脆摻在一起做成<del>撒尿牛丸</del>，學習筆記。</p>
+</blockquote>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#Intro">Intro.</a></li>
+<li><a href="#Cast-an-eye-over-the-“DeFi-Testing”">Cast an eye over the
+“DeFi Testing”</a></li>
+<li><a href="#“Brewing”-Time---Basic-Defi-Project">“Brewing” Time -
+Basic Defi Project</a></li>
+<li><a href="#“Tasting”-Time">“Tasting” Time</a></li>
+<li><a href="#Tipsy">Tipsy</a></li>
+<li><a href="#Foundry-De-Problem-List">Foundry De-Problem List</a></li>
+</ul>
+<h3 id="synchronization-link-tree">Synchronization Link Tree</h3>
+<ul>
+<li><a href="https://medium.com/@ChiHaoLu">Medium</a></li>
+<li><a href="https://www.linkedin.com/in/ChiHaoLu/">LinkedIn</a></li>
+<li><a href="https://github.com/ChiHaoLu">Github</a></li>
+</ul>
+<hr />
+<h2 id="intro.">Intro.</h2>
+<h3 id="subject">Subject</h3>
+<p>前兩個月使用過的 Foundry
+變的越來越潮了，所以想來跟大家分享一下這個新穎的測試工具！</p>
+<p>這次的主要流程為：先寫一個簡單的 DeFi Project，有 Staking
+的功能，之後用 Foundry 對其進行測試。本來想要挑現行的有名 Project
+來測試的，但找到的 DeFi Project
+都有一點點巨應該值得更長的篇幅特別分享！</p>
+<div class="warning">
+<p>Foundry
+更新的速度遠比我想像中快，不過是一個月沒看而已，很多東西都完全長得不一樣了，所以大家如果遇到任何問題可以先參考一下
+<a href="#Foundry-Official-DocGithub">Reference 中的官方文件們。</a></p>
+</div>
+<hr />
+<h2 id="cast-an-eye-over-the-defi-testing-with-foundry">Cast an eye over
+the “DeFi Testing with Foundry”</h2>
+<h3 id="testing-type">Testing Type</h3>
+<ul>
+<li>Unit Tests
+<ul>
+<li>Unit Testing
+通常是指完整、獨立地測試每一個部件，在給定各種輸入的情況下和預期的輸出要相符。在測試的過程中通常不會考慮其他部件的影響，在
+Solidity 撰寫的 Smat Contract 中，部件通常指的是每一個 Function。</li>
+<li>需要注意的輸入有：
+<ul>
+<li>邊際測資
+<ul>
+<li>空字串、bound(e.g. 0, min, max, 2^256, -2^128…)</li>
+</ul></li>
+<li>極端測資
+<ul>
+<li>超長的輸入</li>
+</ul></li>
+<li>特殊測資
+<ul>
+<li>含有特殊字元的輸入</li>
+</ul></li>
+</ul></li>
+</ul></li>
+<li>Integration Tests
+<ul>
+<li>將許多個 Unit 組合之後一起進行測試，確保這些部件無論是：
+<ul>
+<li>在一起隨機運作</li>
+<li>有特定目的運作</li>
+<li>或甚至模擬特定情況的運作，都是正確無誤的。</li>
+</ul></li>
+<li>除了隨機交互作用之外，模擬的情況可能有：Owner Operation、WhiteList
+Operation、User Operation 等。</li>
+</ul></li>
+<li>Regression Tests
+<ul>
+<li>以迴歸的方式來對版本重測，確定舊版本 Bug
+於修正後不會在新版本中出現。</li>
+<li>會嘗試去模擬現實世界的運行流，通常會有多個使用者隨機操作產品，也會有不同地方的
+Provider，這樣可以去測試系統中是否有 Deadlock
+的發生，或者不正常甚至不斷重複呼叫某一個功能的情況。</li>
+<li>範例圖片<a
+href="https://quantstamp.com/blog/securing-your-defi-project-starts-with-quality-testing">出處</a></li>
+</ul></li>
+</ul>
+<p><img src="https://i.imgur.com/PSm0W4G.jpg" /> * Special Tests *
+針對特定攻擊或者目的進行預防測試，例如重送攻擊、閃電貸等。</p>
+<h3 id="what-features-can-we-use-in-foundry">What features can we use in
+Foundry</h3>
+<p>Foundry 由以下兩者組成： - <a
+href="https://github.com/gakonst/foundry/tree/master/forge"><strong>Forge</strong></a>：
+和我們平常使用的其他開發工具一樣，是一個 Ethereum 的測試框架。 - <a
+href="https://github.com/gakonst/foundry/tree/master/cast"><strong>Cast</strong></a>：支援多種客戶端功能，像是與
+EVM
+智能合約互動、傳遞交易、取得鏈上資訊等，就如同一把瑞士刀（官方文件寫的）。</p>
+<p>來自官方的 Foundry 特性： * 快速且彈性的編譯 Pipeline *
+自動偵測並下載 Solidity 不同版本的編譯器（under ~/.svm） *
+增量編譯和緩存: 只有被修改的檔案會被重新編譯 * 並行編譯 *
+支援非特定的目錄結構（e.g. Hardhat repos） * 以 Solidity 撰寫測試 *
+快速的 Fuzz testing，能夠收斂到最小的輸入，並輸出其反例 * 快速的遠端 RPC
+分岔模式, 利用類似 tokio 的 Rust 異步運行架構 * 彈性的 debug
+紀錄輸出（logging） * Dapptools-style: DsTest’s emitted logs *
+Hardhat-style: console.sol contract * 非常輕量（5-10MB），不需要 Nix
+之類的套件管理器 * 能與 Foundry GitHub 快速的 CI（持續性整合）</p>
+<h3 id="preparation">Preparation</h3>
+<p>如果作業系統是 Linux 或 macOS 最簡單的方法就是使用以下方法下載
+Foundry：</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>curl <span class="op">-</span>L https<span class="op">:</span><span class="co">//foundry.paradigm.xyz | bash</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>foundryup</span></code></pre></div>
+<p>下載完成之後再執行一次 <code>foundryup</code> 會將 Foundry
+更新至最新版本，如果想要返回到指定版本，則使用指令
+<code>foundryup -v $VERSION</code>。</p>
+<p>然而我自己是使用 Windows，下載的方式如下。</p>
+<p>在下載 Foundry 之前得先擁有 Rust 和 Cargo，首先到 rustup.rs 下載
+rust，然後執行：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>rustup<span class="op">-</span>init</span></code></pre></div>
+<p>這樣就能同時準備好 Rust 和 Cargo，最後打開 CMD 使用以下指令安裝
+Foundry。</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>cargo install <span class="op">--</span>git https<span class="op">:</span><span class="co">//github.com/foundry-rs/foundry foundry-cli anvil --bins --locked</span></span></code></pre></div>
+<p>下載成功以後在電腦的某個地方使用 <code>init</code>
+初始化一個專案。</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>$ forge init defi<span class="op">-</span>testing</span></code></pre></div>
+<p>forge CLI 將會創建兩個檔案目錄：<code>lib</code> 和
+<code>src</code>。</p>
+<ul>
+<li><strong><code>lib</code></strong> 包含了 testing contract
+(lib/ds-test/src/test.sol)，同時也有其他各式各樣測試合約的實作
+demo(lib/ds-test/demo/demo.sol)</li>
+<li><strong><code>src</code></strong>
+放了我們寫的智能合約和測試的原始碼</li>
+</ul>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="op">.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>├── foundry<span class="op">.</span><span class="at">toml</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>├── lib</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>│   ├─ds<span class="op">-</span>test</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>│   │  ├─demo</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>│   │  └─src</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>│   └── forge<span class="op">-</span>std</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>│       ├── lib</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>│       ├── LICENSE<span class="op">-</span>APACHE</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>│       ├── LICENSE<span class="op">-</span>MIT</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>│       ├── README<span class="op">.</span><span class="at">md</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>│       └── src</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>└── src</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    ├── Contract<span class="op">.</span><span class="at">sol</span> </span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    └── test</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        └──Contract<span class="op">.</span><span class="at">t</span><span class="op">.</span><span class="at">sol</span></span></code></pre></div>
+<p>之後一樣在終端機的部分，輸入指令：</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>$ forge install OpenZeppelin<span class="op">/</span>openzeppelin<span class="op">-</span>contracts</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="op">&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>Installing openzeppelin<span class="op">-</span>contracts <span class="kw">in</span> <span class="st">&quot;C:</span><span class="sc">\\</span><span class="st">Users</span><span class="sc">\\</span><span class="st">qazws</span><span class="sc">\\</span><span class="st">Desktop</span><span class="sc">\\</span><span class="st">Blockchain</span><span class="sc">\\</span><span class="st">defi-testing</span><span class="sc">\\</span><span class="st">lib</span><span class="sc">\\</span><span class="st">openzeppelin-contracts&quot;</span><span class="op">,</span> (url<span class="op">:</span> https<span class="op">:</span><span class="co">//github.com/OpenZeppelin/openzeppelin-contracts, tag: None)</span></span></code></pre></div>
+<p>便可以在 <code>lib</code> 中看見 OpenZeppelin 的合約們。</p>
+<p>在 <code>foundry.toml</code> 裡面決定 Foundry 的運行設定，包含 Remap
+我們 import 或執行命令的路徑，以下列出一些常用的參數：</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>[<span class="im">default</span>]</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>src <span class="op">=</span> <span class="st">&#39;src&#39;</span>                                                   # the source directory</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>test <span class="op">=</span> <span class="st">&#39;test&#39;</span>                                                 # the test directory</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>out <span class="op">=</span> <span class="st">&#39;out&#39;</span>                                                   # the output <span class="fu">directory</span> (<span class="cf">for</span> artifacts)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>libs <span class="op">=</span> [<span class="st">&#39;lib&#39;</span>]                                                # a list <span class="kw">of</span> library directories</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>remappings <span class="op">=</span> [<span class="st">&#39;ds-test/=lib/ds-test/src/&#39;</span><span class="op">,</span> </span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;@openzeppelin/=lib/openzeppelin-contracts/&quot;</span>]   # a list <span class="kw">of</span> remappings</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>evm_version <span class="op">=</span> <span class="st">&#39;london&#39;</span>                                        # the evm <span class="fu">version</span> (by hardfork name)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>#solc_version <span class="op">=</span> <span class="st">&#39;0.8.10&#39;</span>                                      # override <span class="cf">for</span> the solc <span class="fu">version</span> (setting <span class="kw">this</span> <span class="fu">ignores</span> <span class="vs">`auto_detect_solc`</span>)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>sender <span class="op">=</span> <span class="st">&#39;0xB42faBF7BCAE8bc5E368716B568a6f8Fdf3F84ec&#39;</span>         # the address <span class="kw">of</span> <span class="vs">`msg.sender`</span> <span class="kw">in</span> tests</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>tx_origin <span class="op">=</span> <span class="st">&#39;0x00a329c0648769a73afac7f9381e08fb43dbea72&#39;</span>      # the address <span class="kw">of</span> <span class="vs">`tx.origin`</span> <span class="kw">in</span> tests</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>initial_balance <span class="op">=</span> <span class="st">&#39;0xffffffffffffffffffffffff&#39;</span>                # the initial balance <span class="kw">of</span> the test contract</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>gas_limit <span class="op">=</span> <span class="dv">9223372036854775807</span>                               # the gas limit <span class="kw">in</span> tests</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>gas_price <span class="op">=</span> <span class="dv">0</span>                                                 # the gas <span class="fu">price</span> (<span class="kw">in</span> wei) <span class="kw">in</span> tests</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>block_timestamp <span class="op">=</span> <span class="dv">0</span>                                           # the value <span class="kw">of</span> <span class="vs">`block.timestamp`</span> <span class="kw">in</span> tests</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>gas_reports <span class="op">=</span> [<span class="st">&quot;*&quot;</span>]    </span></code></pre></div>
+<p>更多詳細內容可查看以下<a
+href="https://github.com/gakonst/foundry/tree/master/config">連結</a>。</p>
+<hr />
+<h2 id="brewing-time---basic-defi-project">“Brewing” Time - Basic Defi
+Project</h2>
+<h3 id="implementation---simple-staking-contract">Implementation -
+Simple Staking Contract</h3>
+<p>三個平行合約輔以 <code>ERC20</code>、<code>Ownable</code> 和
+<code>safeMath</code> 等函式庫的陽春 DeFi Staking。基本上就是 User
+可以透過抵押 stableCoin，換取抵押時間計算而得的 holdToken 收益。</p>
+<h4 id="contract.sol">Contract.sol</h4>
+<pre class="solidity="><code>// SPDX-License-Identifier: MIT
+pragma solidity &gt;=0.8.0;
+
+import &quot;./StableCoin.sol&quot;;
+import &quot;./LP.sol&quot;;
+import &quot;./safeMath.sol&quot;;
+import &quot;./Ownable.sol&quot;;
+
+contract Farm is Ownable {
+    LP public holdToken;
+    StableCoin public dai;
+
+    constructor(LP _holdToken, StableCoin _dai) {
+        holdToken = _holdToken;
+        dai = _dai;
+    }
+
+    /** ---------------- Constructs the Data Structures ---------------- */
+
+    struct ClientInfo {
+        uint startTime;
+        uint stakingBalance;
+        uint yieldBalance;
+        bool isStaking;
+    }
+
+    mapping(address =&gt; ClientInfo) public ClientList;
+
+    /** ---------------- Getter Function ---------------- */
+
+    function getClientStartTime(address _addr) view public returns(uint){
+        return ClientList[_addr].startTime;
+    
+    // pass...
+
+    /** ---------------- Algorithms ---------------- */
+
+    function stakeTokens(uint _amount) public {
+       // pass...
+    }
+
+    function calYield(address _address) public view returns(uint){
+       // pass...
+    }
+
+    function withdrawYield() public {
+       // pass...
+    }
+
+    function unstakeTokens() public {
+       // pass...
+}</code></pre>
+<h4 id="stablecoin.sol">StableCoin.sol</h4>
+<pre class="solidity="><code>pragma solidity &gt;=0.8.0;
+
+import &quot;@openzeppelin/contracts/token/ERC20/ERC20.sol&quot;;
+
+contract StableCoin is ERC20 {
+
+    uint256 public initialSupply = 10000;
+    constructor() ERC20(&quot;TestDAI&quot;, &quot;tDAI&quot;) {
+        _mint(msg.sender, initialSupply);
+    }
+}</code></pre>
+<h4 id="lp.sol">LP.sol</h4>
+<pre class="solidity="><code>pragma solidity &gt;=0.8.0;
+
+import &quot;@openzeppelin/contracts/token/ERC20/ERC20.sol&quot;;
+
+contract LP is ERC20 {
+
+    uint256 public initialSupply = 10000;
+    constructor() ERC20(&quot;MyToken&quot;, &quot;MT&quot;) {
+        _mint(msg.sender, initialSupply);
+    }
+}</code></pre>
+<h3 id="dev-tools.">Dev Tools.</h3>
+<p>如果需要環境變數可以增設 <code>.env</code>：</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>PRIVATE_KEY<span class="op">=&lt;</span>your_private_key<span class="op">&gt;</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>RPC_URL<span class="op">=&lt;</span>your_API_key<span class="op">&gt;</span></span></code></pre></div>
+<h4 id="gas-report">Gas Report</h4>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>$ forge test <span class="op">--</span>gas<span class="op">-</span>report</span></code></pre></div>
+<h4 id="use-hardhat-to-deploy">Use Hardhat to Deploy</h4>
+<p>下載 Hardhat 作為開發工具，選擇
+<code>Create an empty hardhat.config.js</code>：</p>
+<pre class="javascript="><code>$ yarn add hardhat
+$ yarn hardhat
+&gt;
+888    888                      888 888               888
+888    888                      888 888               888
+888    888                      888 888               888
+8888888888  8888b.  888d888 .d88888 88888b.   8888b.  888888
+888    888     &quot;88b 888P&quot;  d88&quot; 888 888 &quot;88b     &quot;88b 888
+888    888 .d888888 888    888  888 888  888 .d888888 888
+888    888 888  888 888    Y88b 888 888  888 888  888 Y88b.
+888    888 &quot;Y888888 888     &quot;Y88888 888  888 &quot;Y888888  &quot;Y888
+
+Welcome to Hardhat v2.9.6
+
+? What do you want to do? ... 
+  Create a basic sample project
+  Create an advanced sample project
+  Create an advanced sample project that uses TypeScript
+&gt; Create an empty hardhat.config.js
+  Quit</code></pre>
+<p>使用以下指令在本地執行模擬的 JSON RPC 環境，得到一些可供測試的
+Accounts：</p>
+<pre class="javascript="><code>$ yarn hardhat node
+&gt;
+Started HTTP and WebSocket JSON-RPC server at http://127.0.0.1:8545/
+
+Accounts
+========
+
+WARNING: These accounts, and their private keys, are publicly known.
+Any funds sent to them on Mainnet or any other live network WILL BE LOST.
+
+Account #0: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000 ETH)
+Private Key: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+Account #1: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (10000 ETH)
+Private Key: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+
+...
+
+Account #19: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199 (10000 ETH)
+Private Key: 0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e
+
+WARNING: These accounts, and their private keys, are publicly known.
+Any funds sent to them on Mainnet or any other live network WILL BE LOST.</code></pre>
+<p>開啟一個新的 Terminal 來測試 Deploy：</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>$ forge create <span class="op">&lt;</span>ContractName<span class="op">&gt;</span> <span class="op">--</span><span class="kw">private</span><span class="op">-</span>key <span class="op">&lt;</span>your_private_key<span class="op">&gt;</span> <span class="op">--</span>rpc<span class="op">-</span>url <span class="op">&lt;</span>RPC_URL<span class="op">&gt;</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>$ forge create Contract <span class="op">--</span><span class="kw">private</span><span class="op">-</span>key <span class="op">&lt;</span>dyour_private_key<span class="op">&gt;</span> <span class="op">--</span>rpc<span class="op">-</span>url http<span class="op">:</span><span class="co">//127.0.0.1:8545/</span></span></code></pre></div>
+<p>也可以打開 Ganache 使用 http://127.0.0.1:7545/ 來配合。</p>
+<hr />
+<h2 id="tasting-time">“Tasting” Time</h2>
+<h3 id="more-features-can-use">More features can use</h3>
+<p>Foundry 同樣也支持 <a
+href="https://en.wikipedia.org/wiki/Fuzzing">Fuzzing</a>
+測試。因為當我們一個一個函式都進行測試時，即便全部都成功
+PASS，但在邊際測資中其實也很有可能會出現一些問題，導致 Under/Overflow
+或其他 RuntimeError/Memory Leak 之類的錯誤。</p>
+<p>我們在測試函式中增加參數之後，Fuzzing 能夠讓 Solidity test runner
+隨機選擇大量的參數輸入我們的函式。</p>
+<pre class="solidity="><code>function testDoubleWithFuzzing(uint256 x) public {
+    foo.set(x);
+    require(foo.x() == x);
+    foo.double();
+    require(foo.x() == 2 * x);
+}</code></pre>
+<p>在以上例子中 fuzzer 會自動地對 <code>x</code>
+嘗試各種隨機數，如果他發現當前輸入會導致測試失敗，便會回傳錯誤，這時候就可以開始
+debug 啦！</p>
+<p>進行測試：</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>$ forge test</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="op">&gt;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>[<span class="dv">2</span><span class="er">K</span>[<span class="dv">1</span><span class="er">m</span>[[<span class="dv">32</span><span class="er">m⠆</span>[<span class="dv">0</span><span class="op">;</span><span class="dv">1</span><span class="er">m</span>][<span class="dv">0</span><span class="er">m</span> Compiling<span class="op">...</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>[<span class="dv">2</span><span class="er">K</span>[<span class="dv">1</span><span class="er">m</span>[[<span class="dv">32</span><span class="er">m⠔</span>[<span class="dv">0</span><span class="op">;</span><span class="dv">1</span><span class="er">m</span>][<span class="dv">0</span><span class="er">m</span> Compiling <span class="dv">1</span> files <span class="cf">with</span> <span class="fl">0.8.10</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>Compiler run successful</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>Running <span class="dv">3</span> tests <span class="cf">for</span> FooTest<span class="op">.</span><span class="at">json</span><span class="op">:</span>FooTest</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>[<span class="dv">32</span><span class="er">m</span>[PASS][<span class="dv">0</span><span class="er">m</span> <span class="fu">testDouble</span>() (gas<span class="op">:</span> <span class="dv">9384</span>)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>[<span class="dv">31</span><span class="er">m</span>[FAIL<span class="op">.</span> <span class="at">Reason</span><span class="op">:</span> Arithmetic over<span class="op">/</span>underflow<span class="op">.</span> <span class="at">Counterexample</span><span class="op">:</span> calldata<span class="op">=</span><span class="bn">0xc80b36b68000000000000000000000000000000000000000000000000000000000000000</span><span class="op">,</span> args<span class="op">=</span>[<span class="dv">57896044618658097711785492504343953926634992332820282019728792003956564819968</span>]][<span class="dv">0</span><span class="er">m</span> <span class="fu">testDoubleWithFuzzing</span>(uint256) (runs<span class="op">:</span> <span class="dv">4</span><span class="op">,</span> μ<span class="op">:</span> <span class="dv">2867</span><span class="op">,</span> <span class="op">~:</span> <span class="dv">3823</span>)</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>[<span class="dv">32</span><span class="er">m</span>[PASS][<span class="dv">0</span><span class="er">m</span> <span class="fu">testFailDouble</span>() (gas<span class="op">:</span> <span class="dv">9290</span>)</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>Failed tests<span class="op">:</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>[<span class="dv">31</span><span class="er">m</span>[FAIL<span class="op">.</span> <span class="at">Reason</span><span class="op">:</span> Arithmetic over<span class="op">/</span>underflow<span class="op">.</span> <span class="at">Counterexample</span><span class="op">:</span> calldata<span class="op">=</span><span class="bn">0xc80b36b68000000000000000000000000000000000000000000000000000000000000000</span><span class="op">,</span> args<span class="op">=</span>[<span class="dv">57896044618658097711785492504343953926634992332820282019728792003956564819968</span>]][<span class="dv">0</span><span class="er">m</span> <span class="fu">testDoubleWithFuzzing</span>(uint256) (runs<span class="op">:</span> <span class="dv">4</span><span class="op">,</span> μ<span class="op">:</span> <span class="dv">2867</span><span class="op">,</span> <span class="op">~:</span> <span class="dv">3823</span>)</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>Encountered a total <span class="kw">of</span> [<span class="dv">31</span><span class="er">m1</span>[<span class="dv">0</span><span class="er">m</span> failing tests<span class="op">,</span> [<span class="dv">32</span><span class="er">m2</span>[<span class="dv">0</span><span class="er">m</span> tests succeeded</span></code></pre></div>
+<p>從以上錯誤會發現當參數輸入為
+<code>57896044618658097711785492504343953926634992332820282019728792003956564819968</code>
+之後會出現錯誤，來到 <a
+href="https://www.wolframalpha.com/">wolframe</a> 貼上這個數字會發現其為
+<code>5.789 * 10^76 ~= 2^255</code>。</p>
+<p>聽起來十分合理因為 <code>x</code> 的型態是
+<code>uint256</code>，所以如果要避免程式出現問題，勢必要在該測試函式裡面增加一些<strong>關於型態定義的條件</strong>，待會我會解釋！</p>
+<p>未來 Foundry 除了 Fuzz Testing 之外，還會支援： * Invariant Testing *
+Symbolic Execution * Mutation Testing</p>
+<div class="info">
+<p>New Features 可以在這兩個 Repo 找到： * <a
+href="https://github.com/gakonst/foundry/blob/master/forge/README.md">forge
+package</a> * <a
+href="https://github.com/gakonst/foundry/blob/master/cli/README.md">CLI
+README</a>.</p>
+</div>
+<h3 id="cheating">Cheating</h3>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>$ forge install foundry<span class="op">-</span>rs<span class="op">/</span>forge<span class="op">-</span>std</span></code></pre></div>
+<p>下載了 Standard Library 之後在 <code>Contract.t.sol</code>
+我們就改繼承 <code>Test.sol</code> 不用 <code>ds-test</code> 的
+<code>test.sol</code>。因為 <code>Test.sol</code> 已經實作了
+<code>ds-test</code>、<code>Vm.sol</code> 和 <code>console.sol</code>
+這些我們需要的部分：</p>
+<pre class="solidity="><code>// SPDX-License-Identifier: Unlicense
+pragma solidity &gt;=0.6.0 &lt;0.9.0;
+
+import &quot;./Vm.sol&quot;;
+import &quot;ds-test/test.sol&quot;;
+import &quot;./console.sol&quot;;
+import &quot;./console2.sol&quot;;
+
+// Wrappers around Cheatcodes to avoid footguns
+abstract contract Test is DSTest {
+    using stdStorage for StdStorage;
+
+    uint256 private constant UINT256_MAX = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
+
+    event WARNING_Deprecated(string msg);
+
+    Vm public constant vm = Vm(HEVM_ADDRESS);
+    StdStorage internal stdstore;
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                    STD-CHEATS
+    //////////////////////////////////////////////////////////////////////////*/
+    
+    // ...
+}</code></pre>
+<p>特別是：</p>
+<pre class="solidity"><code>Vm public constant vm = Vm(HEVM_ADDRESS);</code></pre>
+<p>前一個版本的 Foundry 是利用宣告 <code>CheatCodes</code>
+的介面，後在測試合約裡面宣告
+<code>cheats</code>。最後只要在我們想要測試的合約裡面加上
+<code>cheats.prank(address(0));</code> 就可以把自己的角度轉成
+<code>address(0)</code>。</p>
+<pre class="solidity="><code>interface CheatCodes {
+  function prank(address) external;
+}
+
+contract ContractTest is DSTest {
+  CheatCodes cheats = CheatCodes(HEVM_ADDRESS);
+    
+  // skip the code...
+    
+  function testFailNotWLMint() public {
+    cheats.prank(address(0));
+    carman.preSaleMint(10);
+  }  
+}</code></pre>
+<h3 id="initialization-first-testing">Initialization &amp; First
+Testing</h3>
+<p><code>vm</code> 是 Foundry 中的 CheatingCode，可用於模擬「該 Test
+Function 中」的 EVM 和區塊鏈狀況，例如 <code>vm.assume</code>
+可用於指定變數性質、<code>vm.warp</code> 可以指定
+<code>block.timestamp</code> 等。</p>
+<pre class="solidity="><code>// SPDX-License-Identifier: MIT
+pragma solidity &gt;= 0.8.10;
+
+import &quot;forge-std/Test.sol&quot;;
+import &quot;../Contract.sol&quot;;
+import &quot;../StableCoin.sol&quot;;
+import &quot;../LP.sol&quot;;
+
+contract FarmTest is Test {
+
+    Farm public farm;
+    LP public holdToken;
+    StableCoin public dai;
+
+    address DEPLOYER_ADDRESS;
+
+    function setUp() public {
+        holdToken = new LP();
+        dai = new StableCoin();
+        farm = new Farm(holdToken, dai);
+        DEPLOYER_ADDRESS = farm.owner(); // (DEPLOYER == address(this)) != (msg.sender == &lt;sender_in_foundry.toml&gt;)
+    }
+    
+    function testOwner() public {
+        assertEq(DEPLOYER_ADDRESS, farm.owner());
+    }
+
+    function testMockContractInit() public {
+        // Initial Mint
+        assertEq(holdToken.balanceOf(DEPLOYER_ADDRESS), holdToken.initialSupply());
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), holdToken.initialSupply());
+    }
+
+    function testMockContractTransferFrom(uint256 _amount) public {
+        vm.assume(_amount &lt;= holdToken.initialSupply() &amp;&amp; _amount &lt;= dai.initialSupply());
+
+        holdToken.approve(DEPLOYER_ADDRESS, _amount);
+        holdToken.transferFrom(DEPLOYER_ADDRESS, address(1), _amount);
+        assertEq(holdToken.balanceOf(address(1)), _amount);
+
+        dai.approve(DEPLOYER_ADDRESS, _amount);
+        dai.transferFrom(DEPLOYER_ADDRESS, address(1), _amount);
+        assertEq(dai.balanceOf(address(1)), _amount);
+    }
+}</code></pre>
+<p>這邊主要測試 Owner 和兩個 ERC-20 合約的運作是否正常。</p>
+<pre class="javascript="><code>$ forge test
+&gt;
+[⠆] Compiling...
+[⠃] Compiling 4 files with 0.8.10
+[⠊] Solc 0.8.10 finished in 2.79s
+Compiler run successful (with warnings)
+
+[PASS] testMockContractInit() (gas: 21400)
+[PASS] testMockContractTransferFrom(uint256) (runs: 256, μ: 95003, ~: 107435)
+[PASS] testOwner() (gas: 9852)
+
+Test result: ok. 3 passed; 0 failed; finished in 0.64s</code></pre>
+<p>需要注意的點有： 1. 以 new 宣告合約之後可取得其地址作為 Constructor
+的參數傳入 2. <code>&lt;contract_deployer&gt; == address(this)</code> 3.
+<code>msg.sender == &lt;sender_in_foundry.toml&gt;</code> 4.
+<code>&lt;contract_deployer&gt; != msg.sender</code> 5. 關於 Approve 和
+Transfer 的用法與使用時機參考： * <a
+href="https://eips.ethereum.org/EIPS/eip-20">EIP-20: Token Standard</a>
+* <a
+href="https://ethereum.org/zh-tw/developers/tutorials/transfers-and-approval-of-erc-20-tokens-from-a-solidity-smart-contract/">TRANSFERS
+AND APPROVAL OF ERC-20 TOKENS FROM A SOLIDITY SMART CONTRACT</a></p>
+<h3 id="msg.sender-in-foundry">msg.sender in Foundry</h3>
+<p><code>msg.sender</code> 在 Foundry 一直是我覺得非常頭痛的問題。</p>
+<p>大家還記得之前的 <code>foundry.toml</code> 嗎！如果我們在裡面加上參數
+<code>sender</code> 就可以指定在合約測試時預設的
+<code>msg.sender</code>：</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>[<span class="im">default</span>]</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>src <span class="op">=</span> <span class="st">&#39;src&#39;</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>out <span class="op">=</span> <span class="st">&#39;out&#39;</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>libs <span class="op">=</span> [<span class="st">&#39;lib&#39;</span>]</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>remappings <span class="op">=</span> [<span class="st">&#39;forge-std/=lib/forge-std/src/&#39;</span><span class="op">,</span><span class="st">&#39;ds-test/=lib/ds-test/src/&#39;</span><span class="op">,</span> <span class="st">&quot;@openzeppelin/=lib/openzeppelin-contracts/&quot;</span>]</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>sender <span class="op">=</span> <span class="st">&#39;0xB42faBF7BCAE8bc5E368716B568a6f8Fdf3F84ec&#39;</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>block_timestamp <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a># See more config options https<span class="op">:</span><span class="co">//github.com/gakonst/foundry/tree/master/config</span></span></code></pre></div>
+<p>從官方文件整理的函式比較表： | <a
+href="https://book.getfoundry.sh/cheatcodes/prank.html">OriginalCheatcode</a>
+|Statement | <a
+href="https://book.getfoundry.sh/reference/forge-std/std-cheats.html">related
+Forge-STD</a> | | ——– | ——– | ——– | | <code>prank(address)</code> | Sets
+<code>msg.sender</code> to the specified address for the next call. “The
+next call” includes static calls as well, but not calls to the cheat
+code address. |<code>hoax</code> | | <code>startPrank(address)</code> |
+Sets <code>msg.sender</code> for all subsequent calls until
+<code>stopPrank</code> is called. | <code>startHoax</code>,
+<code>changePrank</code> | | <code>stopPrank(address)</code> | Stops an
+active prank started by <code>startPrank</code>, resetting
+<code>msg.sender</code> and <code>tx.origin</code> to the values before
+<code>startPrank</code> was called. | |</p>
+<p>在 Foundry-STD 中也可以使用 <code>console.log</code>
+的模擬環境，需要注意的是 <code>prank()</code> 只適用於<strong>下一個
+external call</strong>，而, <code>console.log</code> 並不是 external
+call 所以沒辦法印出我們想像中的地址。</p>
+<p>舉例來說我們想要假裝有一個 EOA 來 Deploy 合約：</p>
+<pre class="solidity="><code>Vm public constant vm = Vm(HEVM_ADDRESS);
+
+function setUp() public {
+    vm.startPrank(address(deployer));
+    deployedContract = new MyContract();
+    vm.stopPrank();
+}</code></pre>
+<p>先來看第一個 Prank 測試：</p>
+<pre class="solidity="><code>/** Unit Testing For Mock Contracts*/
+
+    function testPrank1() public {
+        assertEq(DEPLOYER_ADDRESS, farm.owner()); // now owner() is DEPLOYER
+        farm.transferOwnership(msg.sender); 
+        // the transaction originator of transferOwnership is the &quot;contract&quot; ---&gt; DEPLOYER == address(this)  
+        assertEq(msg.sender, farm.owner()); // transfer successfully
+        // now owner is the &quot;msg.sender&quot; ---&gt; &lt;sender_in_foundry.toml&gt;
+
+        vm.prank(DEPLOYER_ADDRESS);  // change the &quot;msg.sender&quot; ---&gt; DEPLOYER == address(this)
+        try farm.transferOwnership(msg.sender){
+            assertTrue(false, &quot;prank failed!&quot;);
+            // transferOwnership should revert, 
+            // when &quot;msg.sender&quot; is now being the DEPLOYER, but the owner is &lt;sender_in_foundry.toml&gt;
+
+            // if transferOwnership not revert,
+            // it means the function called successfully,
+            // ---&gt; the &quot;msg.sender&quot; is still the &lt;sender_in_foundry.toml&gt;
+            // ---&gt; we prank failed.
+        } catch {
+            assertTrue(true);
+            // revert successfully
+        }
+
+        // The most important thing is that the prank is only useful for &quot;external&quot; call
+        // the only &quot;external&quot; call above is &quot;farm.transferOwnership()&quot;
+    }</code></pre>
+<p>再來看看另外一個測試：</p>
+<p><code>msg.sender</code> 在測試檔案中是一個會呼叫每個 test function 的
+EOA。而 <code>prank()</code> 是一個 test function
+中的函式，目的是去「改變 external call 的
+caller」，並不會向外影響到整個測試檔的
+<code>msg.sender</code>，因此沒辦法影響到不是 external call
+的對象，例如：<code>assertEq</code>。</p>
+<pre class="solidity="><code>    function testPrank2() public {
+        assertEq(msg.sender, 0xB42faBF7BCAE8bc5E368716B568a6f8Fdf3F84ec); //[PASS]
+        assertEq(DEPLOYER_ADDRESS, address(this)); // [PASS]
+        assertEq(DEPLOYER_ADDRESS, farm.owner()); // [PASS]
+        /**
+        vm.prank(DEPLOYER_ADDRESS);
+        assertEq(DEPLOYER_ADDRESS, msg.sender); // [Failed] 
+            ---&gt; Because &quot;assertEq()&quot; is not external call
+         */
+    }</code></pre>
+<p>除了 <code>msg.sender</code>
+之外，另外一個更頭痛的問題是各種補充實作的
+selector，未來有機會再跟大家分享。 :::info
+其中一個我提出來並解決的問題後來被加到官方文件的 <a
+href="https://book.getfoundry.sh/tutorials/solmate-nft.html#extending-our-nft-contract-functionality-and-testing">NFT
+測試範例</a>裡面了！ 1. <a
+href="https://github.com/foundry-rs/foundry/discussions/964">Error From
+Testing ERC-721 Contract Mint Function #964</a> 2. <a
+href="https://ethereum.stackexchange.com/questions/125238/catching-custom-error">Catching
+custom error</a> :::</p>
+<h3 id="unit-testing">Unit Testing</h3>
+<p>超級陽春的把四個函式測試一次，基本上這裡沒有實作太花俏的內容，比較需要注意的點有幾個：
+1. 關於兩種代幣的模型，在設計上包含供給量得特別注意，但由於是 Mock
+來示範地所以沒有特別著墨。 2. 做 Input Fuzzing Test 的時候可以考慮 +1
+或者 -1 來看是否會導致錯誤。 3. 可以使用多個 mockAddress
+來做交互測試，不一定要用 test Contract 本身當 receiver 或
+sender，這個部分我下一次再介紹。 4. 模擬使用者情境的時候該在 Dapp
+實作的部分要補上，例如 <code>approve()</code>。</p>
+<h4 id="teststaking">testStaking</h4>
+<p>合約原始碼：</p>
+<pre class="solidity="><code>    function stakeTokens(uint _amount) public {
+        require(_amount &gt; 0, &#39;You cannot stake 0 tokens&#39;);
+
+        uint oldDaiBal = dai.balanceOf(msg.sender);
+        require( oldDaiBal &gt; _amount, &quot;insufficient DAI!&quot;);
+
+        uint256 allowance = dai.allowance(msg.sender, address(this));
+        require(allowance &gt;= _amount, &quot;Check the token allowance&quot;);
+        
+        dai.transferFrom(msg.sender, address(this), _amount);
+        require(dai.balanceOf(msg.sender) == oldDaiBal - _amount, &quot;Transfer Failed!&quot;);
+        require(dai.balanceOf(address(this)) == _amount, &quot;Transfer Failed!&quot;);
+
+        uint oldBalance = ClientList[msg.sender].stakingBalance;
+        ClientList[msg.sender].stakingBalance = SafeMath.add(ClientList[msg.sender].stakingBalance, _amount);
+        require(ClientList[msg.sender].stakingBalance &gt; oldBalance, &quot;Staking Bug!&quot;);
+
+        ClientList[msg.sender].startTime = block.timestamp;
+        ClientList[msg.sender].isStaking = true;
+    }</code></pre>
+<p>相對應的測試：</p>
+<pre class="solidity="><code>    function testStaking(uint256 _amount) public {
+        vm.assume(_amount &gt; 0 &amp;&amp; _amount &lt;= holdToken.initialSupply() &amp;&amp; _amount &lt;= dai.initialSupply());
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply());
+
+        vm.startPrank(DEPLOYER_ADDRESS);
+        dai.approve(address(farm), _amount);
+        farm.stakeTokens(_amount);
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply() - _amount);
+        assertEq(farm.getClientStakingBalance(DEPLOYER_ADDRESS), _amount);
+        assertEq(farm.getClientStartTime(DEPLOYER_ADDRESS), block.timestamp);
+        assertEq(farm.getClientYieldBalance(DEPLOYER_ADDRESS), 0);
+        assertEq(farm.getClientIsStaking(DEPLOYER_ADDRESS), true);
+        vm.stopPrank();
+    }</code></pre>
+<h4 id="testcalyield">testCalYield</h4>
+<p>合約原始碼：</p>
+<pre class="solidity="><code>    function calYield(address _address) public view returns(uint){
+        uint end = block.timestamp;
+        uint totalTime = SafeMath.sub(end, ClientList[_address].startTime);
+        return SafeMath.div(totalTime, 60);
+        // Yield Per Minute
+    }</code></pre>
+<p>相對應的測試：</p>
+<pre class="solidity="><code>    function testCalYield(uint _amount, uint32 _timeRoll) public {
+        vm.assume(_amount &gt; 0 &amp;&amp; _amount &lt;= holdToken.initialSupply() &amp;&amp; _amount &lt;= dai.initialSupply());
+        vm.assume(_timeRoll &lt; 2**32);
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply());
+
+        vm.startPrank(DEPLOYER_ADDRESS);
+        // Stake
+        dai.approve(address(farm), _amount);
+        farm.stakeTokens(_amount);
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply() - _amount);
+        assertEq(farm.getClientStakingBalance(DEPLOYER_ADDRESS), _amount);
+        assertEq(farm.getClientStartTime(DEPLOYER_ADDRESS), block.timestamp);
+        assertEq(farm.getClientYieldBalance(DEPLOYER_ADDRESS), 0);
+        assertEq(farm.getClientIsStaking(DEPLOYER_ADDRESS), true);
+
+        // CalYield
+        vm.warp(_timeRoll);
+        uint result = SafeMath.div(SafeMath.sub(_timeRoll, farm.getClientStartTime(DEPLOYER_ADDRESS)), 60);
+        assertEq(farm.calYield(DEPLOYER_ADDRESS), result);
+
+        vm.stopPrank();
+    }</code></pre>
+<h4 id="testwithdrawyield">testWithdrawYield</h4>
+<p>合約原始碼：</p>
+<pre class="solidity="><code>    function withdrawYield() public {
+
+        uint profit = calYield(msg.sender);
+        uint withdraw = SafeMath.div(SafeMath.mul(ClientList[msg.sender].stakingBalance, profit), 100);
+
+        if(ClientList[msg.sender].yieldBalance &gt; 0){
+            uint originalYBal = ClientList[msg.sender].yieldBalance;
+            ClientList[msg.sender].yieldBalance = 0;
+            withdraw = SafeMath.add(withdraw, originalYBal);
+        }
+
+        if(withdraw == 0 &amp;&amp; ClientList[msg.sender].yieldBalance == 0){
+            return ;
+        }
+
+        ClientList[msg.sender].startTime = block.timestamp;
+        holdToken.transfer(msg.sender, withdraw);
+    }</code></pre>
+<p>相對應的測試：</p>
+<pre class="solidity="><code>    function testWithdrawYield(uint256 _amount, uint _timeRoll) public {
+        vm.assume(_amount &gt; 0 &amp;&amp; _amount &lt;= holdToken.initialSupply() &amp;&amp; _amount &lt;= dai.initialSupply());
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply());
+
+        vm.startPrank(DEPLOYER_ADDRESS);
+        // Stake
+        dai.approve(address(farm), _amount);
+        farm.stakeTokens(_amount);
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply() - _amount);
+        assertEq(farm.getClientStakingBalance(DEPLOYER_ADDRESS), _amount);
+        assertEq(farm.getClientStartTime(DEPLOYER_ADDRESS), block.timestamp);
+        assertEq(farm.getClientYieldBalance(DEPLOYER_ADDRESS), 0);
+        assertEq(farm.getClientIsStaking(DEPLOYER_ADDRESS), true);
+
+        // withdrawYield
+        vm.assume(_timeRoll &lt; 2**8); 
+        // here is a risk of that holdtoken.totalSupply &lt; withdraw, 
+        // this defi should hava a better Tokenomics Model
+        vm.warp(_timeRoll);
+        farm.withdrawYield();
+        uint withdraw = SafeMath.add(
+                            SafeMath.div(
+                                SafeMath.mul(farm.getClientStakingBalance(DEPLOYER_ADDRESS), 
+                                    SafeMath.div(
+                                        SafeMath.sub(_timeRoll, farm.getClientStartTime(DEPLOYER_ADDRESS))
+                                    , 60))
+                            , 100)
+                        , farm.getClientYieldBalance(DEPLOYER_ADDRESS));
+        
+        if(withdraw &gt; 0 || farm.getClientYieldBalance(DEPLOYER_ADDRESS) &gt; 0){
+            assertEq(holdToken.balanceOf(DEPLOYER_ADDRESS), withdraw);
+            assertEq(farm.getClientYieldBalance(DEPLOYER_ADDRESS), 0);
+            assertEq(farm.getClientStartTime(DEPLOYER_ADDRESS), _timeRoll);
+        }
+        vm.stopPrank();
+
+        // Stake Status Check Again
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply() - _amount);
+        assertEq(farm.getClientStakingBalance(DEPLOYER_ADDRESS), _amount);
+        assertEq(farm.getClientIsStaking(DEPLOYER_ADDRESS), true);
+    }</code></pre>
+<h4 id="testunstaking">testUnStaking</h4>
+<p>合約原始碼：</p>
+<pre class="solidity="><code>    function unstakeTokens() public {
+        require(ClientList[msg.sender].isStaking, &#39;You are not staker!&#39;);
+        
+        withdrawYield();
+        
+        uint balance = ClientList[msg.sender].stakingBalance;
+        require(balance &gt; 0, &quot;There is no fund in your staking account!&quot;);
+        
+        // need to prevent re-entrancy attack later!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        dai.transfer(msg.sender, balance);
+        ClientList[msg.sender].stakingBalance = 0;
+        ClientList[msg.sender].isStaking = false;
+    }</code></pre>
+<p>相對應的測試：</p>
+<pre class="solidity="><code>    function testUnStaking(uint256 _amount) public {
+        vm.assume(_amount &gt; 0 &amp;&amp; _amount &lt;= holdToken.initialSupply() &amp;&amp; _amount &lt;= dai.initialSupply());
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply());
+
+        vm.startPrank(DEPLOYER_ADDRESS);
+        // Stake
+        dai.approve(address(farm), _amount);
+        farm.stakeTokens(_amount);
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply() - _amount);
+        assertEq(farm.getClientStakingBalance(DEPLOYER_ADDRESS), _amount);
+        assertEq(farm.getClientStartTime(DEPLOYER_ADDRESS), block.timestamp);
+        assertEq(farm.getClientYieldBalance(DEPLOYER_ADDRESS), 0);
+        assertEq(farm.getClientIsStaking(DEPLOYER_ADDRESS), true);
+
+        // Unstake
+        farm.unstakeTokens();
+        assertEq(dai.balanceOf(DEPLOYER_ADDRESS), dai.initialSupply());
+        assertEq(farm.getClientStakingBalance(DEPLOYER_ADDRESS), 0);
+        assertEq(farm.getClientStartTime(DEPLOYER_ADDRESS), block.timestamp);
+        assertEq(farm.getClientYieldBalance(DEPLOYER_ADDRESS), 0);
+        assertEq(farm.getClientIsStaking(DEPLOYER_ADDRESS), false);
+        vm.stopPrank();
+    }</code></pre>
+<hr />
+<h2 id="tipsy">Tipsy</h2>
+<h3 id="conclusion">Conclusion</h3>
+<p>寫測試的感覺跟之前在當程式設計助教的樣子很像，雖然上文沒有特別設計一些情況來檢測，但過往絞盡腦汁想測資來考學生這件事居然還幫上忙😂</p>
+<p>因為最近要期末考（可憐大學生），所以 Integration Test、Regression
+Test、Special Test 我留到下一篇再來分享！</p>
+<p>這篇文章非常感謝智程老師、陳品老師、狸貓老師給予十分有幫助的建議！</p>
+<h3 id="reference-citation">Reference &amp; Citation</h3>
+<ul>
+<li><a
+href="https://ethereum.org/en/developers/docs/smart-contracts/testing/">TESTING
+SMART CONTRACTS</a></li>
+<li><a
+href="http://eprints.cs.univie.ac.at/7141/1/document.pdf">Maximilian
+Wohrer and Uwe Zdun, “DevOps for Ethereum Blockchain Smart
+Contracts,”</a></li>
+</ul>
+<h4 id="defi-testing">DeFi Testing</h4>
+<ul>
+<li><a
+href="https://quantstamp.com/blog/securing-your-defi-project-starts-with-quality-testing">Securing
+Your DeFi Project Starts with Quality Testing</a></li>
+<li><a
+href="https://www.apriorit.com/business-case-studies-list/747-evaluating-smart-contract-security-for-defi">Evaluating
+Smart Contract Security for Decentralized Finance (DeFi)</a></li>
+<li><a
+href="https://blog.chain.link/testing-chainlink-smart-contracts/">Testing
+Chainlink Smart Contracts</a></li>
+<li><a
+href="https://defisolutions.com/general-news/2017/05/16/defi-engineering-cult-quality/">defi
+ENGINEERING: A CULT OF QUALITY</a></li>
+<li><a
+href="https://blaize.tech/article-type/how-to-build-a-successful-defi-project/#Project-Testing">HOW
+TO BUILD A SUCCESSFUL DEFI PROJECT?</a></li>
+<li><a
+href="https://blaize.tech/article-type/defi-security-how-to-prevent-your-defi-project-from-hacking/">DEFI
+SECURITY AUDIT: HOW TO PREVENT YOUR DEFI PROJECT FROM HACKING?</a></li>
+</ul>
+<h4 id="defi-protocol">DeFi Protocol</h4>
+<ul>
+<li><a
+href="https://github.com/tradingstrategy-ai/web3-ethereum-defi/tree/master/tests">Python___tradingstrategy-ai/web3-ethereum-defi</a></li>
+<li><a
+href="https://github.com/yieldprotocol/yield-liquidator-v2/blob/master/test/test_flashLiquidator.ts">Hardhat___yieldprotocol/yield-liquidator-v2</a></li>
+<li><a
+href="https://github.com/sense-finance/space-v1/tree/main/src/tests">Foundry___sense-finance/space-v1</a></li>
+<li><a
+href="https://github.com/pendle-finance/pendle-core/tree/master/test">Hardhat___pendle-finance/pendle-core</a></li>
+<li><a
+href="https://github.com/tranche-jibrel/tranche-compound-protocol/tree/master/test">Truffle___tranche-jibrel/tranche-compound-protocol</a></li>
+<li><a
+href="https://github.com/notional-finance/contracts/tree/master/test">Ethers___notional-finance/contracts</a></li>
+<li><a
+href="https://github.com/element-fi/elf-contracts/tree/main/test">Hardhat___element-fi/elf-contracts</a></li>
+<li><a
+href="https://github.com/BarnBridge/BarnBridge-YieldFarming/tree/master/test">Hardhat___BarnBridge/BarnBridge-YieldFarming</a></li>
+<li><a
+href="https://github.com/BarnBridge/BarnBridge-SmartYieldBonds/tree/master/test">Hardhat___BarnBridge/BarnBridge-SmartYieldBonds</a></li>
+<li><a
+href="https://github.com/XY-Finance/xy-protocol/blob/master/tests/test_client_swap.py">Python___XY-Finance/xy-protocol</a></li>
+<li><a
+href="https://github.com/hakkafinance/blackholeswap/blob/master/contracts/blackholeswapV1.sol">hakkafinance/blackholeswap</a></li>
+</ul>
+<h4 id="foundry-official-doc.github">Foundry Official Doc./Github</h4>
+<ul>
+<li><a href="https://book.getfoundry.sh/index.html">Foundry
+Book</a></li>
+<li><a
+href="https://github.com/foundry-rs/foundry">foundry-rs/foundry</a></li>
+<li><a
+href="https://github.com/foundry-rs/forge-std">foundry-rs/forge-std</a></li>
+</ul>
+<h4 id="foundry-resources">Foundry Resources</h4>
+<ul>
+<li><a href="https://www.youtube.com/watch?v=Rp_V7bYiTCM">How to Foundry
+with Brock Elmore</a></li>
+<li><a
+href="https://github.com/crisgarner/awesome-foundry?fbclid=IwAR2ypJ1Pj1EpTmoFmT5OuqTGDHR-ce0yFsdFMyVdiY3Hg08MSNJV8whN0Ss">crisgarner/awesome-foundry</a></li>
+<li><a href="https://www.youtube.com/watch?v=fNMfMxGxeag">Intro to
+Foundry | The FASTEST Smart Contract Framework</a></li>
+<li><a
+href="https://jamesbachini.com/foundry-tutorial/#foundry-cheat-codes">Foundry
+Tutorial | How To Debug &amp; Deploy Solidity Smart Contracts</a></li>
+<li><a
+href="https://book.tictactoken.co/chapters/1/setting-up-foundry.html">Tic-Tac-Token-Foundry</a></li>
+<li><a
+href="https://github.com/nicolasgarcia214/damn-vulnerable-defi-foundry">Damn
+Vulnerable DeFi - Foundry Version ⚒️</a></li>
+</ul>
+<h3 id="dev.-roadmap">Dev. Roadmap</h3>
+<ul>
+<li>Development
+<ul>
+<li>Gas optimization</li>
+<li>Contract upgradability</li>
+<li>Contract complexity</li>
+</ul></li>
+<li>Sercurity
+<ul>
+<li>100% Testing Coverage</li>
+<li>Auditing</li>
+<li>Code Uniqueness</li>
+</ul></li>
+</ul>
+<h4 id="testing-spec">Testing Spec</h4>
+<ul>
+<li>Variable Analysis</li>
+<li>Object List</li>
+<li>Contract Inheritance Graph</li>
+<li>Potential Risk</li>
+<li>User and Provider Type</li>
+</ul>
+<h4 id="testing-enviornment">Testing Enviornment</h4>
+<ul>
+<li>Local testing</li>
+<li>Testing on testnet</li>
+<li>Transaction debug</li>
+</ul>
+<hr />
+<h2 id="foundry-de-problem-list">Foundry De-Problem List</h2>
+<h3 id="download-foundry-problem">1. Download Foundry Problem</h3>
+<p>如果在下載過程中像我一樣遇到以下錯誤：</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>error<span class="op">:</span> linker link<span class="op">.</span><span class="at">exe</span> not found</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="op">|</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="op">=</span> note<span class="op">:</span> program not found</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>note<span class="op">:</span> the msvc targets depend on the msvc linker but link<span class="op">.</span><span class="at">exe</span> was not found</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>note<span class="op">:</span> please ensure that VS <span class="dv">2013</span><span class="op">,</span> VS <span class="dv">2015</span><span class="op">,</span> VS <span class="dv">2017</span> or VS <span class="dv">2019</span> was installed <span class="cf">with</span> the Visual C<span class="op">++</span> option</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>error<span class="op">:</span> could not compile proc<span class="op">-</span>macro2 due to previous error</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>warning<span class="op">:</span> build failed<span class="op">,</span> waiting <span class="cf">for</span> other jobs to finish<span class="op">...</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>error<span class="op">:</span> failed to <span class="fu">compile</span> <span class="vs">`foundry-cli v0.1.0 (https://github.com/gakonst/foundry#d66f9d58)`</span><span class="op">,</span> intermediate artifacts can be found at C<span class="op">:</span>\Users\qazws\AppData\Local\Temp\cargo<span class="op">-</span>installe6Rd6Y</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>Caused by<span class="op">:</span></span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a>  build failed</span></code></pre></div>
+<p>只要下載 <a href="https://www.blogger.com/null">Visual Studio 2019
+Build tools</a>，選擇 C++ Build Tools
+然後重開機就可以解決了！下載大小約是 6 GB。</p>
+<h3 id="functional-inheritance-problem">2. Functional Inheritance
+Problem</h3>
+<p>在使用某些繼承來的函式時，要確保被繼承裡面的參數或變數受體為何，簡單來說就是用合約去測試合約（Foundry）的時候，和用前端去測試合約（Javascript）的角度還是會有不同。</p>
+<p>例如：如果沒有實作 <code>_checkOnERC721Received</code>
+的話，在合約裡面直接宣告 <code>_safeMint()</code>
+以後會出現以下錯誤：</p>
+<pre><code>Running 1 test for CarManTest.json:CarManTest
+�[31m[FAIL. Reason: ERC721: transfer to non ERC721Receiver implementer]�[0m testDeployerCanMint() (gas: 192214)
+
+Failed tests:
+�[31m[FAIL. Reason: ERC721: transfer to non ERC721Receiver implementer]�[0m testDeployerCanMint() (gas: 192214)
+
+Encountered a total of �[31m1�[0m failing tests, �[32m0�[0m tests succeeded</code></pre>
+<p><code>_checkOnERC721Received</code> 有一個 verification logic
+存在，如果今天 <code>to</code> 的地址是一個合約而不是
+EOA，那就需要實作它的 body，這樣才可以在 ERC-721 的介面裡面回傳正確的 4
+bytes hash。</p>
+<pre class="solidity="><code>  function onERC721Received(
+      address, 
+      address, 
+      uint256, 
+      bytes calldata
+  )external pure returns(bytes4) {
+      return bytes4(keccak256(&quot;onERC721Received(address,address,uint256,bytes)&quot;));
+  } </code></pre>
+<h3 id="bash-make-command-not-found">3. bash: make: command not
+found</h3>
+<p>到此<a href="https://chocolatey.org/install#individual">連結</a>下載
+choco，完成之後輸入以下指令：</p>
+<pre><code>$ choco install make</code></pre>
+<h3 id="cargo-install-problem-vm-forge-stdtest.sol-is-not-working">4.
+cargo install Problem || (vm || forge-std/Test.sol is not working)</h3>
+<ol type="1">
+<li>更新 Foundry，去官方文件用最新的方法再下載一次</li>
+<li>查看 <a
+href="https://book.getfoundry.sh/reference/index.html">cheatcode
+&amp;&amp; forge-std Reference</a></li>
+<li>查看 vm 和 test 原始碼</li>
+<li>查看 forge-std 原始碼</li>
+</ol>
+<hr />
+<div class="info">
+<p>最後歡迎大家拍打餵食窮苦大學生<a
+href="https://etherscan.io/address/0x2b83c71A59b926137D3E1f37EF20394d0495d72d"><code>0x2b83c71A59b926137D3E1f37EF20394d0495d72d</code></a>
+😥</p>
+</div>

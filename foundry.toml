@@ -2,6 +2,8 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-remappings = ['ds-test/=lib/ds-test/src/']
+remappings = ['forge-std/=lib/forge-std/src/','ds-test/=lib/ds-test/src/', "@openzeppelin/=lib/openzeppelin-contracts/"]
+sender = '0xB42faBF7BCAE8bc5E368716B568a6f8Fdf3F84ec'
+block_timestamp = 0
 
 # See more config options https://github.com/gakonst/foundry/tree/master/config
